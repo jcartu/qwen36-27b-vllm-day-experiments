@@ -2,7 +2,14 @@
 
 A full day of benchmarking the [Repne `repne/vllm`](https://hub.docker.com/r/repne/vllm) fork against upstream [vllm-project/vllm](https://github.com/vllm-project/vllm) v0.20.1 across multiple model variants and quantization formats on **dual NVIDIA RTX PRO 6000 Blackwell** (TP=2, SM120, Workstation Edition, 96 GB each, PCIe Gen5 x16 negotiated under load).
 
-Five experiments. Five answers. **Bottom line: stay on the Repne fork.**
+Six experiments. Six answers. **Bottom line: stay on the Repne fork with FP8+MTP=3.**
+
+---
+
+## SOTA roll-up
+**See [`SOTA.md`](./SOTA.md)** for the cross-experiment "best tok/s per regime" table. **Headline: FP8+MTP=3 wins every cell where it competes.** No DFlash variant or quantization scheme came within striking distance.
+
+---
 
 ---
 
@@ -53,7 +60,17 @@ EXP-1 morning N=5 randomized variance run flagged a **−5.7%** regression at th
 
 **See:** [`01-morning-newimage-validation/`](./01-morning-newimage-validation/) and [`02-scheduler-investigation/`](./02-scheduler-investigation/)
 
-### 5. PCIe Gen1 reading at idle is normal, not a problem
+### 6. New Repne image (`d0a200f77546`, May 5 evening) preserves FP8+MTP=3 perf, validates DFlash=7/8/15 alternatives
+- Engine version bumped from `v0.1.dev16359+ga3e24c99b` (morning) to `v0.1.dev16400+g910d87a9d` (evening) — +41 commits
+- Tool calling fix verified: 4/4 functional gates pass on all 4 configs (FP8+MTP=3, DFlash=15, DFlash=8, DFlash=7)
+- **FP8+MTP=3 wins every one of 9 cells.** None of the DFlash variants come close
+- Among DFlash variants, **DFlash=7 is best** (+10.6% mean tok/s vs DFlash=15)
+- New image vs prior image: all deltas within ±2σ noise band — neither regression nor improvement
+- 108 total benchmark runs (9 cells × 4 configs × N=3)
+
+**See:** [`06-new-image-validation/`](./06-new-image-validation/)
+
+### 7. PCIe Gen1 reading at idle is normal, not a problem
 The bench tool's `nvidia-smi` startup snapshot shows `pcie.link.gen.current = 1` — looks alarming, but ASPM downscales the link at idle. **Direct stress test confirms the link ramps to PCIe Gen5 (32GT/s) x16 under actual GPU load.** Not a hardware issue.
 
 ---
@@ -84,6 +101,7 @@ The bench tool's `nvidia-smi` startup snapshot shows `pcie.link.gen.current = 1`
 | 3 | [`03-nvfp4-mtp-experiment/`](./03-nvfp4-mtp-experiment/) | Test community NVFP4+MTP as FP8 replacement | afternoon | sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP, 11 cells × N=3 |
 | 4 | [`04-fp8-mtp3-headtohead/`](./04-fp8-mtp3-headtohead/) | Repne vs upstream on FP8+MTP=3 | evening | 6 cells × N=1 quick |
 | 5 | [`05-bf16-dflash-headtohead/`](./05-bf16-dflash-headtohead/) | Repne vs upstream on BF16+DFlash | evening | 6 cells × N=1 quick |
+| 6 | [`06-new-image-validation/`](./06-new-image-validation/) | New image (d0a200f77546) FP8+MTP=3 vs DFlash=15/8/7 | late evening | 9 cells × 4 configs × N=3 = 108 runs |
 
 Each experiment subdir contains:
 - Raw `.json` bench tool output (full per-request samples)
@@ -138,6 +156,6 @@ These four were published as standalone repos throughout the day for fast sharin
 
 ## Recommendation
 
-**Stay on the Repne fork** for any production usage of Qwen3.6-27B on Blackwell SM120, regardless of whether you're using `dflash` or `mtp` for speculative decoding. Upstream v0.20.1 is a clean fallback only for the FP8+MTP=3 path and only if you can tolerate ~5-14% short-context throughput loss. For BF16+DFlash production, upstream is not a viable path — the drafter implementation gap is too large.
+**Stay on the Repne fork with FP8+MTP=3** for production. This is verified SOTA across all 9 production-relevant cells on the latest image (d0a200f77546). DFlash variants don't compete — even DFlash=7 (the best of the three tested) is 17-30% behind FP8+MTP=3. Upstream v0.20.1 is a clean fallback only for the FP8+MTP=3 path and only if you can tolerate ~5-14% short-context throughput loss. For BF16+DFlash production, upstream is not a viable path — the drafter implementation gap is too large.
 
 If Repne ever stops shipping new images, FP8+MTP=3 on upstream v0.20.1 is the safest fallback. Don't try to recreate the dflash performance gap on upstream without a fork that adds back the gumbel sampler and argmax reduction.
