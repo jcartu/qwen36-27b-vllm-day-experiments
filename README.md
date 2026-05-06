@@ -2,12 +2,12 @@
 
 A full day of benchmarking the [Repne `repne/vllm`](https://hub.docker.com/r/repne/vllm) fork against upstream [vllm-project/vllm](https://github.com/vllm-project/vllm) v0.20.1 across multiple model variants and quantization formats on **dual NVIDIA RTX PRO 6000 Blackwell** (TP=2, SM120, Workstation Edition, 96 GB each, PCIe Gen5 x16 negotiated under load).
 
-Six experiments. Six answers. **Bottom line: stay on the Repne fork with FP8+MTP=3.**
+Seven experiments. Seven answers. **Bottom line: switch to FP8+MTP=5 on the Repne fork (was MTP=3, gained +1.8% throughput with no quality penalty).**
 
 ---
 
 ## SOTA roll-up
-**See [`SOTA.md`](./SOTA.md)** for the cross-experiment "best tok/s per regime" table. **Headline: FP8+MTP=3 wins every cell where it competes.** No DFlash variant or quantization scheme came within striking distance.
+**See [`SOTA.md`](./SOTA.md)** for the cross-experiment "best tok/s per regime" table. **Headline (updated by exp 07): FP8+MTP=5 is the new SOTA — beats MTP=3 by +1.8% mean across 9 cells, biggest win at c=1 ctx=131k (+6.5%).** No DFlash variant or quantization scheme came within striking distance.
 
 ---
 
@@ -70,7 +70,18 @@ EXP-1 morning N=5 randomized variance run flagged a **−5.7%** regression at th
 
 **See:** [`06-new-image-validation/`](./06-new-image-validation/)
 
-### 7. PCIe Gen1 reading at idle is normal, not a problem
+### 7. MTP=5 beats MTP=3 (+1.8% mean), Phaelon's W8A8 lobotomization concern doesn't show in our tests, and NVFP4 is permanently dead
+
+After the Discord conversation with PhaelonQuant Creators raised concerns about W8A8 quantization quality and we realized we'd never tested anything but throughput, we ran four targeted experiments:
+
+- **Phase A (spec-decode losslessness):** MTP=3 differs from no-spec at temp=0 on 4/8 prompts, but no correctness regressions. The 1.74× speedup justifies the non-bitwise-identical behavior.
+- **Phase B (FP8 vs Q8 GGUF quality):** Both produce factually correct, syntactically valid outputs. Both pass 8/8 functional tests on Manacher's algorithm. FP8 is 2.15× faster. **Phaelon's W8A8 lobotomization concern is theoretically valid but not empirically dominant on this hardware.**
+- **Phase C (MTP n sweep on FP8):** Tested n ∈ {2,3,4,5,6}. **MTP=5 wins +1.8% mean across 9 cells, biggest win +6.5% at c=1 ctx=131k.** 4/4 functional gates pass. **This is an actionable change to the ROCK SOLID config.**
+- **Phase D (NVFP4 rescue on Repne fork):** Hypothesized Repne's flags would help NVFP4 like they helped dflash. **They didn't — Repne fork is 50% slower than upstream v0.20.1 for NVFP4.** Repne's optimizations are W8A8/BF16-specific. NVFP4 is permanently disqualified.
+
+**See:** [`07-quality-sprint/`](./07-quality-sprint/)
+
+### 8. PCIe Gen1 reading at idle is normal, not a problem
 The bench tool's `nvidia-smi` startup snapshot shows `pcie.link.gen.current = 1` — looks alarming, but ASPM downscales the link at idle. **Direct stress test confirms the link ramps to PCIe Gen5 (32GT/s) x16 under actual GPU load.** Not a hardware issue.
 
 ---
@@ -102,6 +113,7 @@ The bench tool's `nvidia-smi` startup snapshot shows `pcie.link.gen.current = 1`
 | 4 | [`04-fp8-mtp3-headtohead/`](./04-fp8-mtp3-headtohead/) | Repne vs upstream on FP8+MTP=3 | evening | 6 cells × N=1 quick |
 | 5 | [`05-bf16-dflash-headtohead/`](./05-bf16-dflash-headtohead/) | Repne vs upstream on BF16+DFlash | evening | 6 cells × N=1 quick |
 | 6 | [`06-new-image-validation/`](./06-new-image-validation/) | New image (d0a200f77546) FP8+MTP=3 vs DFlash=15/8/7 | late evening | 9 cells × 4 configs × N=3 = 108 runs |
+| 7 | [`07-quality-sprint/`](./07-quality-sprint/) | Phaelon-triggered quality probes + MTP n sweep + NVFP4 rescue | overnight | 4 phases: A (losslessness), B (FP8 vs Q8 GGUF), C (MTP n=2-6 sweep, MTP=5 wins), D (NVFP4 on Repne — failed rescue) |
 
 Each experiment subdir contains:
 - Raw `.json` bench tool output (full per-request samples)
@@ -156,6 +168,6 @@ These four were published as standalone repos throughout the day for fast sharin
 
 ## Recommendation
 
-**Stay on the Repne fork with FP8+MTP=3** for production. This is verified SOTA across all 9 production-relevant cells on the latest image (d0a200f77546). DFlash variants don't compete — even DFlash=7 (the best of the three tested) is 17-30% behind FP8+MTP=3. Upstream v0.20.1 is a clean fallback only for the FP8+MTP=3 path and only if you can tolerate ~5-14% short-context throughput loss. For BF16+DFlash production, upstream is not a viable path — the drafter implementation gap is too large.
+**Use the Repne fork with FP8+MTP=5** for production (updated from MTP=3 by experiment 07). This is verified SOTA across all 9 production-relevant cells on the latest image (d0a200f77546). DFlash variants don't compete — even DFlash=7 (the best of the three tested) is 17-30% behind. Quality probes confirm no regression vs Q8 GGUF (Phaelon's W8A8 concern doesn't manifest empirically). NVFP4 is permanently disqualified on this hardware. Upstream v0.20.1 is a clean fallback only for the FP8+MTP=3 path and only if you can tolerate ~5-14% short-context throughput loss. For BF16+DFlash production, upstream is not a viable path — the drafter implementation gap is too large.
 
 If Repne ever stops shipping new images, FP8+MTP=3 on upstream v0.20.1 is the safest fallback. Don't try to recreate the dflash performance gap on upstream without a fork that adds back the gumbel sampler and argmax reduction.
