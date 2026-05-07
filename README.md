@@ -1,3 +1,17 @@
+> ## ⚠️ This repo is ARCHIVED — content moved
+>
+> The work in this repository has been **superseded** by:
+>
+> ### → [`jcartu/qwen36-27b-blackwell-inference-study`](https://github.com/jcartu/qwen36-27b-blackwell-inference-study)
+>
+> That repo contains **identical raw data** (same 8 experiments, same `master-results.csv`) plus an expanded write-up and `PERFORMANCE_CHART.md`. This repo was an early-draft duplicate.
+>
+> For the full Qwen-Bench index (all studies, all tools, current SOTA), see:
+>
+> ### → [`jcartu/qwen-bench`](https://github.com/jcartu/qwen-bench)
+>
+> ---
+>
 # Qwen3.6-27B vLLM benchmark sprint — May 5, 2026
 
 A full day of benchmarking the [Repne `repne/vllm`](https://hub.docker.com/r/repne/vllm) fork against upstream [vllm-project/vllm](https://github.com/vllm-project/vllm) v0.20.1 across multiple model variants and quantization formats on **dual NVIDIA RTX PRO 6000 Blackwell** (TP=2, SM120, Workstation Edition, 96 GB each, PCIe Gen5 x16 negotiated under load).
